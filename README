@@ -1,0 +1,6 @@
+README
+
+1. Pre-Requirements
+
+* libcurl4-openssl-dev
+* libjson-c-dev

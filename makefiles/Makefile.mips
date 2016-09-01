@@ -1,0 +1,5 @@
+SYSROOT=/opt/mips-uclibc-cross-v203
+CC=mips-unknown-linux-uclibc-gcc
+CFLAGS = -mips1 --sysroot=$(SYSROOT) -std=c99 -fPIC -Wall -Wextra -O2 -I$(SYSROOT)/include
+LDFLAGS = -shared -fPIC
+STRIP = mips-unknown-linux-uclibc-strip

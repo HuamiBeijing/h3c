@@ -1,0 +1,6 @@
+
+
+curl command-line test:
+
+
+$ curl  -v -H "Content-Type: application/json" --user "gE1nm7Pzq0U5U1UnawIa":"_P>U4YO085LQvkWPQG2mYw9*w6oK5JBTOmLZkQXb9YLNYXO4G<tN4q*IfKuy" htteacon.huami-inc.com/hbox/838ffee8843/opEvents -d '{ "type": "swipe", "eventId": "BBBBBBBBBBBB_1471835467", "data": [ { "scanner": "838ffee8843", "advertiser": [ { "mac": "BBBBBBBBBBBB", "message": "{\"step\": 286331153}", "timestamp": 1471835467 } ] } ] }'
