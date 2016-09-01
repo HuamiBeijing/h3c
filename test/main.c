@@ -84,51 +84,46 @@ int main()
   printf("configures:\t%s\n\n",s.message);
 
   uint32_t count = 0;
-  while(1)
-    {
-      printf("==============Normal process packet:%d\n",count);  
+
   HBeaconStatus ss = service.processPacket(strlen(scannerId), scannerId, HBeaconScanRspDataType,h3cmac,20, rawData, 0xee);
   printf("processpacket code:\t%d\tmessage:\t%s\n\n",ss.code, ss.message);
 
-  sleep(1);
-  count++;
-    }
   printf("==============Mac address change to error state\n");
   uint8_t macAddr2[6] = {0x88,0x0f,0x10,0xeb,0xc1,0xc7};
-  HBeaconStatus sss  = service.processPacket(8, scannerId, HBeaconScanRspDataType,macAddr2,20, rawData, 0xee);
+  HBeaconStatus sss  = service.processPacket(strlen(scannerId), scannerId, HBeaconScanRspDataType,macAddr2,20, rawData, 0xee);
   printf("processpacket code:\t%d\tmessage:\t%s\n\n", sss.code,sss.message);
 
 
   printf("==================rawdata change to error format\n");
   uint8_t rawData2[20] = {0x05,0x09,0x4d,0x49,0x31,0x53,0x05,0x02,0xe0,0xff,0xe7,0xfe,0x07,0x16,0xe0,0xfe,0xc3,0x16,0x00,0x00};
-  HBeaconStatus ssss = service.processPacket(8, scannerId, HBeaconScanRspDataType,macAddr,20, rawData2, 0xee);
+  HBeaconStatus ssss = service.processPacket(strlen(scannerId), scannerId, HBeaconScanRspDataType,macAddr,20, rawData2, 0xee);
   printf("processpacket code:\t%d\tmessage:\t%s\n\n",ssss.code, ssss.message);
   
 
   printf("=================Add scanner ID\n"); 
-  uint8_t sid1[6] = {0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
-  status = service.configureScanner(HBeaconScannerSetup, 6, sid1);
+  uint8_t *sid1 = "askdfajsdfklafsadf";
+  status = service.configureScanner(HBeaconScannerSetup, strlen(sid1), sid1);
   printf("Add scanner:%d\t%s\n\n",status.code,status.message);
 
 
   
   printf("=================Add scanner ID\n");
-  uint8_t sid2[10] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x00};
-  status = service.configureScanner(HBeaconScannerSetup, 10,sid2);
+  uint8_t *sid2 = "foqwfsjkfjasfdjas";
+  status = service.configureScanner(HBeaconScannerSetup, strlen(sid2),sid2);
   printf("Add scanner:%d\t%s\n\n",status.code,status.message);
   
 
   printf("==============process packet with another scanner ID\n");
-  status = service.processPacket(6, sid1, HBeaconScanRspDataType,macAddr,20, rawData, 0xee);
+  status = service.processPacket(strlen(sid1), sid1, HBeaconScanRspDataType,macAddr,20, rawData, 0xee);
   printf("%s\n\n", status.message);
 
   printf("==============Remove scannner ID\n");
-  status = service.configureScanner(HBeaconScannerRemove, 6, sid1);
+  status = service.configureScanner(HBeaconScannerRemove, strlen(sid1), sid1);
   printf("%s\n\n", status.message);
 
   
   printf("=============After remove process packet\n");
-  status = service.processPacket(6, sid1, HBeaconScanRspDataType,macAddr,20, rawData, 0xee);
+  status = service.processPacket(strlen(sid1), sid1, HBeaconScanRspDataType,macAddr,20, rawData, 0xee);
   printf("%s\n\n", status.message);
   
   

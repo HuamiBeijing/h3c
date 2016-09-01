@@ -7,7 +7,7 @@
 *
 * Copyright (C) Huami  2016
 *
-* VERSION:1.3.3
+* VERSION:1.3.4
 ****************************************************************************************
 */
 
@@ -53,7 +53,7 @@
 #define hbprintf
 #endif
 
-#define BL_CLEANUP_TIME (86400)
+#define BL_CLEANUP_TIME (86400) //one day 
 
 /*
  * GLOBAL VARIABLE DEFINITIONS
@@ -75,6 +75,8 @@ static uint32_t TimesTamp = 0;
  ****************************************************************************************
  */
 
+
+//black list structure
 typedef struct _blacklist_element {
   uint8_t device[6];
   struct _blacklist_element *prev;
@@ -82,6 +84,7 @@ typedef struct _blacklist_element {
 } BlacklistElement;
 
 
+//scanner list structure 
 typedef struct _scannerlist_element{
 	uint8_t *scanner;
 	uint8_t scannerlen;
@@ -92,12 +95,14 @@ typedef struct _scannerlist_element{
 } ScannerlistElement;
 
 
+// black list and scanner list instance 
 static BlacklistElement *_blacklist = NULL;
 static ScannerlistElement *_scannerlist = NULL;
 
 
-typedef struct _packdata
-{
+
+
+typedef struct _packdata{
 	HBeaconAdvPacketType type;
 
 	uint8_t scannerIdlen;
@@ -163,7 +168,8 @@ static void hexToStr(uint8_t *pbDest,uint8_t *pbSrc,int offset, int nLen)
  * @param[in] black list device string b.
  * @return if a==b return 0.
  ****************************************************************************************
-*/
+ **/
+
 static int _mac_cmp(BlacklistElement *a, BlacklistElement *b)
 {
   return memcmp(a->device, b->device, 6); //TODO: macAddress length is 6;
@@ -174,6 +180,16 @@ static int _id_cmp(ScannerlistElement *a, ScannerlistElement *b)
   return memcmp(a->scanner, b->scanner, b->scannerlen);
 }
 
+
+
+/**
+****************************************************************************************
+* @brief scanner list  search function
+* @param[in] scanner list id 
+* @param[in] scanner list element pointer 
+* @return void
+****************************************************************************************
+**/
 
 static void scannerlistSearch(uint8_t *scannerId,uint8_t len,ScannerlistElement** t)
 {
@@ -228,6 +244,13 @@ static int blacklistSearch(uint8_t *mac)
 }
 
 
+/**
+****************************************************************************************
+* @brief black list clean up function
+* @param void
+* @return void
+****************************************************************************************
+*/
 static int blacklistCleanup(void)
 {
 
@@ -237,9 +260,10 @@ static int blacklistCleanup(void)
     DL_DELETE(_blacklist, bl_elem);
     free(bl_elem);
   }
-  hbprintf("[black list cleanup \n]");
+  hbprintf("[black list cleanup]\n");
   return 0;
 }
+
 
 /**
  ****************************************************************************************
@@ -268,6 +292,8 @@ static uint8_t* unpackAdv(uint8_t len, uint8_t rawdata[len], uint8_t type)
 	return NULL;
 }
 
+
+//get return status function 
 static HBeaconStatus getStatus(uint8_t code, uint8_t* msg)
 {
     HBeaconStatus status = {
@@ -277,6 +303,8 @@ static HBeaconStatus getStatus(uint8_t code, uint8_t* msg)
   memcpy(status.message, msg, strlen(msg));
   return status;
 }
+
+
 
 /**
  ****************************************************************************************
@@ -355,6 +383,7 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
   //get the timestamp
   time(&tiemstamp);
 
+  //cleanup black list every 24 hours 
   if(TimesTamp == 0)
   {
     TimesTamp = tiemstamp;
@@ -471,6 +500,7 @@ static int unpackJson(uint8_t* data,uint8_t *macAddr)
 	    //if error happeded , like no authentication
 	    struct json_object *error_status = json_object_object_get(json,"status");
 	    struct json_object *error_error = json_object_object_get(json,"error");
+	    //if return json status message = 401 means no authentication,make ispasswdvalid = 0
 	    if(!strcmp(json_object_to_json_string(error_status),unauth))
 	    {
 	      hbprintf("[username or passwd error]\n");
@@ -495,24 +525,12 @@ static size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 {
     hbprintf("[write call back size]  :%d\n",nmemb);
     hbprintf("[write call back data]  :%s\n",ptr);
-    //unpack the server write data.
+    //unpack the server write data. userp pinter to mac address 
     unpackJson(ptr,(uint8_t *)userp);
 
     return nmemb;
 }
 
-/**
- ****************************************************************************************
- * @brief pares step internal
- * @return .
- ****************************************************************************************
- */
-static uint32_t parseStepsInternal(uint8_t length,
-				   uint8_t scan_rsp_data[length])
-{
-  //TODO
-  return 0xff;
-}
 
 
 /**
@@ -538,7 +556,8 @@ static HBeaconStatus setupScannerInternal(uint8_t len,
   if (temp) {
     return getStatus(HBeaconStatusError,"Scanner already exists");
   }
-  
+
+  // add scanner id to a list , fill curl and len 
   ScannerlistElement *s = (ScannerlistElement *)malloc(sizeof(ScannerlistElement));
   if(s == NULL) return getStatus(HBeaconStatusError,"NULL pointer");
   s->scanner = malloc(len);
@@ -551,7 +570,7 @@ static HBeaconStatus setupScannerInternal(uint8_t len,
 }
 
 
-
+// remove setup function 
 static HBeaconStatus removeScannerInternal(uint8_t len,
 				   uint8_t scannerId[len])
 {
@@ -573,6 +592,7 @@ static HBeaconStatus removeScannerInternal(uint8_t len,
 
 }
 
+// service configuretion 
 static HBeaconStatus configureScannerInternal(HBeaconScannerAction action,
  					      uint8_t length,
 					      uint8_t scannerID[length])
