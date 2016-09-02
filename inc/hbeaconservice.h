@@ -31,7 +31,7 @@ typedef enum {
 
 typedef enum {
   HBeaconAdvDataType = 0,
-  HBeaconScanRspDataType = 1,
+  HBeaconScanRspDataType = 4,
 } HBeaconAdvPacketType;
 
 typedef struct _hbeacon_status {

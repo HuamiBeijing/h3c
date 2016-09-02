@@ -82,10 +82,10 @@ int main()
   
   HBeaconStatus s = service.configureScanner(HBeaconScannerSetup, strlen(scannerId), scannerId);
   printf("configures:\t%s\n\n",s.message);
-
+  
   uint32_t count = 0;
 
-  HBeaconStatus ss = service.processPacket(strlen(scannerId), scannerId, HBeaconScanRspDataType,h3cmac,20, rawData, 0xee);
+  HBeaconStatus ss = service.processPacket(strlen(scannerId), scannerId, HBeaconAdvDataType,h3cmac,20, rawData, 0xee);
   printf("processpacket code:\t%d\tmessage:\t%s\n\n",ss.code, ss.message);
 
   printf("==============Mac address change to error state\n");
