@@ -38,8 +38,8 @@
  * DEFINES
  ****************************************************************************************
  */
-#define TEST 1
-#define DEBUG 1
+#define TEST 0
+#define DEBUG 0
 
 #if TEST
 #define HURL url // "https://api-test-beacon.huami-inc.com/hbox/838ffee8843/opEvents"
@@ -53,8 +53,11 @@
 #define hbprintf
 #endif
 
-#define BL_CLEANUP_TIME (86400) //one day 
+#define BL_CLEANUP_TIME  (7200)  // two hours
 
+#define JSON_CACHE_LEN  (20)
+
+#define JSON_CACHE_TIME (5)
 /*
  * GLOBAL VARIABLE DEFINITIONS
  ****************************************************************************************
@@ -69,7 +72,9 @@ static uint8_t *_password = NULL;
 static uint8_t isPasswdValid = 1;
 
 static uint32_t TimesTamp = 0;
+static uint32_t CacheTime =0;
 
+static struct json_object *Cache_json_data; 
 /*
  * STRUCTURES
  ****************************************************************************************
@@ -83,7 +88,6 @@ typedef struct _blacklist_element {
   struct _blacklist_element *next;
 } BlacklistElement;
 
-
 //scanner list structure 
 typedef struct _scannerlist_element{
 	uint8_t *scanner;
@@ -95,11 +99,11 @@ typedef struct _scannerlist_element{
 } ScannerlistElement;
 
 
-// black list and scanner list instance 
+
+// black list and scanner list  cache list instance 
 static BlacklistElement *_blacklist = NULL;
+static BlacklistElement *_cachelist = NULL;
 static ScannerlistElement *_scannerlist = NULL;
-
-
 
 
 typedef struct _packdata{
@@ -161,6 +165,28 @@ static void hexToStr(uint8_t *pbDest,uint8_t *pbSrc,int offset, int nLen)
 }
 
 
+static void strToHex(uint8_t *pbDest, uint8_t *pbSrc,int offset,int nLen)
+{
+  uint8_t h1,h2,s1,s2;
+  int i;
+  
+  for (i=0; i<nLen; i++)
+    {
+      h1 = pbSrc[2*i+offset];
+      h2 = pbSrc[2*i+1+offset];
+
+      s1 = toupper(h1) - 0x30;
+      if (s1 > 9)
+	s1 -= 7;
+
+      s2 = toupper(h2) - 0x30;
+      if (s2 > 9)
+	s2 -= 7;
+
+      pbDest[i] = s1*16 + s2;
+    }
+}
+
 /**
  ****************************************************************************************
  * @brief MAC string compare function.use to compare algorithm.
@@ -211,7 +237,7 @@ static void scannerlistSearch(uint8_t *scannerId,uint8_t len,ScannerlistElement*
  * @return instance count in black list.
  ****************************************************************************************
  */
-static int blacklistAdd(uint8_t *mac)
+static int blacklistAdd(BlacklistElement **bl,uint8_t *mac)
 {
 	BlacklistElement *dev,*temp;
 	int count = 0;
@@ -220,9 +246,9 @@ static int blacklistAdd(uint8_t *mac)
 	if(dev == NULL) return -1;
 	memcpy(dev->device,mac,6);
 	// add device instance to the black list
-	DL_APPEND(_blacklist, dev);
+	DL_APPEND(*bl, dev);
 	// return count of balck list
-	DL_COUNT(_blacklist, temp, count);
+	DL_COUNT(*bl, temp, count);
 	return 	count;
 }
 
@@ -233,16 +259,24 @@ static int blacklistAdd(uint8_t *mac)
  * @return if mac string instance exit in black list,return 1.
  ****************************************************************************************
  */
-static int blacklistSearch(uint8_t *mac)
+static int blacklistSearch(BlacklistElement **blacklist,uint8_t *mac)
 {
 	BlacklistElement *temp, search;
 	memcpy(&search.device,mac,6);
 	//search
-	DL_SEARCH(_blacklist,temp,&search,_mac_cmp);
+	DL_SEARCH(*blacklist,temp,&search,_mac_cmp);
 	if(temp) return 1;
 	else  return 0;
 }
 
+
+static int blacklistCount(BlacklistElement **blacklist)
+{
+  BlacklistElement *dev,*temp;
+  int count = 0;
+  DL_COUNT(*blacklist, temp, count);
+  return  count;
+}
 
 /**
 ****************************************************************************************
@@ -251,16 +285,16 @@ static int blacklistSearch(uint8_t *mac)
 * @return void
 ****************************************************************************************
 */
-static int blacklistCleanup(void)
+static int blacklistCleanup(BlacklistElement **blacklist)
 {
 
   //TODO: cleanup the black list
   BlacklistElement *bl_elem, *bl_tmp;
-  DL_FOREACH_SAFE(_blacklist, bl_elem, bl_tmp) {
-    DL_DELETE(_blacklist, bl_elem);
+  DL_FOREACH_SAFE(*blacklist, bl_elem, bl_tmp) {
+    DL_DELETE(*blacklist, bl_elem);
     free(bl_elem);
   }
-  hbprintf("[black list cleanup]\n");
+  hbprintf("[ list cleanup]\n");
   return 0;
 }
 
@@ -318,7 +352,7 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
 {
 
   //timestamp
-  time_t tiemstamp;
+  time_t timestamp;
   uint8_t eveid[24], m[pdata->mac_len*2+1] , message[64];
   int status = 0 ;
   uint32_t steps = 0;
@@ -326,7 +360,7 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
   uint8_t* scannerId;
   uint8_t* mac;
   uint8_t* rawData;
-  struct json_object *json,*data,*data_obj ,*adver,*adver_obj;
+  struct json_object *json,*data_obj ,*adver,*adver_obj;
 
   if(pdata ==NULL)  return getStatus(HBeaconStatusError,"NULL pointer ");
 
@@ -337,12 +371,11 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
 
 
   //search black list ,if mac in blacklist ,return a error ,stop send to server.
-  if(blacklistSearch(mac))
+  if(blacklistSearch(&_blacklist,mac))
   {
-    hbprintf("[device found in black list cancel send]\n");
+    hbprintf("[device found in black list cancel send]:%x%x%x%x%x%x\n",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
  	  return getStatus(HBeaconStatusErrorBlacklist,"BLE device not registered");
   }
-
 
   hbprintf("[device not found in black list]\n");
   
@@ -355,13 +388,13 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
     if(!(ser[2] == 0xe0 && ser[3] == 0xfe && ser[4] == 0xe7 && ser[5] == 0xfe))
       return getStatus(HBeaconStatusError,"Response data format error!");
 
-    uint8_t *data = unpackAdv(pdata->dataLen,rawData,0x16);
-    if(data == NULL) return getStatus(HBeaconStatusError,"Response data format error");
+    uint8_t *da = unpackAdv(pdata->dataLen,rawData,0x16);
+    if(da == NULL) return getStatus(HBeaconStatusError,"Response data format error");
 
-    steps = steps|(data[4]<<0);
-    steps = steps|(data[5]<<8);
-    steps = steps|(data[6]<<16);
-    steps = steps|(data[7]<<24);
+    steps = steps|(da[4]<<0);
+    steps = steps|(da[5]<<8);
+    steps = steps|(da[6]<<16);
+    steps = steps|(da[7]<<24);
     if( steps< 0)
     {
         return getStatus(HBeaconStatusError,"Response data format error");
@@ -371,45 +404,46 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
 
 
   json = json_object_new_object();
-  data = json_object_new_array();
   data_obj = json_object_new_object();
   adver = json_object_new_array();
   adver_obj = json_object_new_object();
-  if(json==NULL || data==NULL || adver==NULL)
+  if(json==NULL||adver==NULL)
   {
 	  return getStatus(HBeaconStatusError,"NULL pointer");
   }
 
-  //get the timestamp
-  time(&tiemstamp);
+  // init the cache data array
+  if(Cache_json_data == NULL)
+    Cache_json_data = json_object_new_array();
 
-  //cleanup black list every 24 hours 
-  if(TimesTamp == 0)
+  time(&timestamp); //get the timestamp 
+
+  //cleanup black list every 2 hours 
+  if(timestamp - TimesTamp >= BL_CLEANUP_TIME)
   {
-    TimesTamp = tiemstamp;
-  }else
-  {
-    if(tiemstamp - TimesTamp >= BL_CLEANUP_TIME)
-      {
 	hbprintf("[black list clean up \n]");
-	blacklistCleanup();
-	TimesTamp = 0;
-      }	
-  }
-
-  //convert mac to hex string
-  hexToStr(m,mac,0,pdata->mac_len);
-  //init the sendMAC for check and add in black list
+	blacklistCleanup(&_blacklist);
+	TimesTamp =timestamp;
+  }	
 
   
-  sprintf(eveid,"%s_%d",m,tiemstamp);
+  //convert mac to hex string
+  hexToStr(m,mac,0,pdata->mac_len);
+
+  // add the mac address to the cache list
+  //when callback,which mac not in the cache list
+  //it is a black device 
+  if(!blacklistSearch(&_cachelist,mac))
+  {
+    int c =blacklistAdd(&_cachelist,mac);
+    hbprintf("[mac add to cache list]:\t%d\n",c);
+  }
+
+  sprintf(eveid,"%s_%d",m,timestamp);
   json_object_object_add(json,"type",json_object_new_string("swipe"));
   json_object_object_add(json,"eventId",json_object_new_string(eveid));
 
-
   json_object_object_add(data_obj,"scanner",json_object_new_string(scannerId));
-  //json_object_object_add(data_obj,"scanner",json_object_new_string("838FFEE8843"));
-
   json_object_object_add(adver_obj,"mac",json_object_new_string(m));
 
   if(type == HBeaconScanRspDataType)
@@ -418,26 +452,39 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
     json_object_object_add(adver_obj,"message",json_object_new_string(message));
   }
 
-  json_object_object_add(adver_obj,"timestamp",json_object_new_int(tiemstamp));
+  json_object_object_add(adver_obj,"timestamp",json_object_new_int(timestamp));
 
   json_object_array_add(adver,adver_obj);
 
   json_object_object_add(data_obj,"advertiser",adver);
-  json_object_array_add(data,data_obj);
-  json_object_object_add(json,"data",data);
+  json_object_array_add(Cache_json_data,data_obj);
 
+
+  //
+#if 1
+  if(CacheTime == 0) CacheTime = timestamp;
+  if(timestamp-CacheTime < JSON_CACHE_TIME)
+  {
+    return getStatus(HBeaconStatusDataCached,"Cached data!");
+  } 
+#endif
+  
+#if 0
+  if(json_object_array_length(Cache_json_data) < JSON_CACHE_LEN)
+    return getStatus(HBeaconStatusDataCached,"Cached data!");
+#endif
+
+  
+  json_object_object_add(json,"data",Cache_json_data);
+  
   //hbprintf("[pack json object]  :%s\n",json_object_to_json_string(json));
   uint8_t *backaaa = malloc(strlen(json_object_to_json_string(json)));
   backaaa= json_object_to_json_string(json);
   *obj = backaaa;
 
-#if 0
-  json_object_put(json);
-  json_object_put(data);
-  json_object_put(data_obj);
-  json_object_put(adver);
-  json_object_put(adver_obj);
-#endif
+
+  json_object_put(Cache_json_data); 
+  Cache_json_data = NULL;
 
   return getStatus(HBeaconStatusOk,"");
 }
@@ -451,52 +498,71 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
  * @return -1 if error occur.
  ****************************************************************************************
  */
-static int unpackJson(uint8_t* data,uint8_t *macAddr)
+static int unpackJson(uint8_t* data,BlacklistElement *cachelist)
 {
-  int length ,status = 0;
+  int length =0  ,status = 0;
   struct json_object *json,*device,*dev_obj,*mac,*details,*huamiid,*deviceid,*type;
   uint8_t *unauth ="401";
 
   
-  json = json_object_new_object();
-  device = json_object_new_array();
-  dev_obj = json_object_new_object();
-  mac = json_object_new_object();
-  details = json_object_new_object();
-  huamiid = json_object_new_object();
-  deviceid = json_object_new_object();
-  type = json_object_new_object();
-
-  if(json==NULL || details==NULL || huamiid==NULL || type==NULL)
-  {
-	  status = -1;
-	  return status;
-  }
-
   json = json_tokener_parse(data);
   device = json_object_object_get(json,"devices");
   if(device != NULL)
   {
-	  dev_obj=  json_object_array_get_idx(device,0);
-	  mac =  json_object_object_get(dev_obj, "mac");
-	  //if return a empty mac object ,means it's a black device ,add to  black list
-	  // else do nothing
-	  if(mac == NULL)
-     	  {
-		 //add to the black list
-                 if(!blacklistSearch(macAddr))
-		 {	
-			hbprintf("[add to black list] \n");
-	         	blacklistAdd(macAddr);
-		 }
-		 return -1;
-	  }else
-	  {
-		       hbprintf("[receive mac]  :%s\n[SUCCESS]\n\n",json_object_to_json_string(mac));
-		       return 0;
-	  }
-    }else
+    length = json_object_array_length(device);
+    hbprintf("[call back device count]:\t%d\n",length);
+    if(length == blacklistCount(&_cachelist))  // if send cached length == back cached length ,means no black device  
+      {
+	hbprintf("[receive cache mac len = cache list count =%d , no black device]\n",length);
+	return 0;
+      }
+    
+    uint8_t mm[length][6];
+    for(int i=0; i<length; i++)
     {
+      dev_obj=  json_object_array_get_idx(device,i);
+      mac =  json_object_object_get(dev_obj, "mac");
+      if(mac == NULL)
+      {
+	hbprintf("[call back return MAC NULL]\n");
+	return 0;
+      }
+      hbprintf("[call back device mac]:\t%s\n",json_object_to_json_string(mac));
+      uint8_t *macstr = json_object_to_json_string(mac);
+      strToHex(mm[i],macstr,1,6);//offset set to 1,because first char is:"  
+    }
+
+    //check cached mac list and back mac,
+    //if cache list mac not  back form server
+    //means it is a black device ,add to black list 
+    BlacklistElement *elt;
+    DL_FOREACH(_cachelist,elt)
+    {
+      int found =0;
+      for(int i=0; i<length; i++)
+	{
+	  if(!memcmp(elt->device,mm[i],6))
+	    found=1;
+	}
+
+      if(!found)
+      {
+	//add to the black list
+	if(!blacklistSearch(&_blacklist,elt->device))
+	  {
+	    hbprintf("[add to black list]:\t %x%x%x%x%x%x\n",elt->device[0],elt->device[1],elt->device[2],elt->device[3],elt->device[4],elt->device[5]);
+	    blacklistAdd(&_blacklist,elt->device);
+	  }
+	
+      }else
+	{
+	  hbprintf("[not add to black list]\n");
+	}
+    }
+
+    
+  }else
+  {
 	    //if error happeded , like no authentication
 	    struct json_object *error_status = json_object_object_get(json,"status");
 	    struct json_object *error_error = json_object_object_get(json,"error");
@@ -508,6 +574,8 @@ static int unpackJson(uint8_t* data,uint8_t *macAddr)
 	    }
 	    hbprintf("[call back error reason]  :%s:%s\n",json_object_to_json_string(error_status),json_object_to_json_string(error_error));
     }
+
+  
   return status;
 }
 
@@ -526,7 +594,7 @@ static size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userp)
     hbprintf("[write call back size]  :%d\n",nmemb);
     hbprintf("[write call back data]  :%s\n",ptr);
     //unpack the server write data. userp pinter to mac address 
-    unpackJson(ptr,(uint8_t *)userp);
+    unpackJson(ptr,(BlacklistElement *)userp);
 
     return nmemb;
 }
@@ -683,7 +751,7 @@ static HBeaconStatus processPacketInternal(uint8_t scannerIdlen,
 
      slist = curl_slist_append(NULL,"Content-Type:application/json;charset=UTF-8");
      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
-     curl_easy_setopt(curl, CURLOPT_TIMEOUT,5);
+     curl_easy_setopt(curl, CURLOPT_TIMEOUT,3);
 
      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, fields); //set curl json data string
      curl_easy_setopt(curl, CURLOPT_HTTPAUTH, (long)CURLAUTH_BASIC);
@@ -695,9 +763,12 @@ static HBeaconStatus processPacketInternal(uint8_t scannerIdlen,
 
 
      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);//set the server write callback function
-     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)macAddr);
+     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)_cachelist);
 
      res = curl_easy_perform(curl);//perform the curl transfer
+     free(fields);
+     time(&CacheTime);
+     blacklistCleanup(&_cachelist);
      hbprintf("[perform back ]:\t%d\n",res);
      if (res != CURLE_OK)
      {
@@ -720,8 +791,7 @@ static HBeaconStatus processPacketInternal(uint8_t scannerIdlen,
        return getStatus(HBeaconStatusError,"Network Init error!");
      }
 
-    free(fields);
-    return status;
+       return status;
 }
 
 
@@ -793,8 +863,10 @@ HBeaconStatus HBeaconScanServiceShutdown(HBeaconScanService *service)
     free(sl_elem);
   }
   
+
+  blacklistCleanup(&_cachelist);
   
-  blacklistCleanup();
+  blacklistCleanup(&_blacklist);
 
   // cleanup the global curl
   curl_global_cleanup();

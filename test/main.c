@@ -85,14 +85,24 @@ int main()
   
   uint32_t count = 0;
 
-  HBeaconStatus ss = service.processPacket(strlen(scannerId), scannerId, HBeaconAdvDataType,h3cmac,20, rawData, 0xee);
+  while(1)
+    {
+  HBeaconStatus ss = service.processPacket(strlen(scannerId), scannerId, HBeaconScanRspDataType,h3cmac,20, rawData, 0xee);
   printf("processpacket code:\t%d\tmessage:\t%s\n\n",ss.code, ss.message);
-
+         
   printf("==============Mac address change to error state\n");
   uint8_t macAddr2[6] = {0x88,0x0f,0x10,0xeb,0xc1,0xc7};
   HBeaconStatus sss  = service.processPacket(strlen(scannerId), scannerId, HBeaconScanRspDataType,macAddr2,20, rawData, 0xee);
   printf("processpacket code:\t%d\tmessage:\t%s\n\n", sss.code,sss.message);
 
+  uint8_t macaaa[6] = {0x8f,0x0f,0x10,0xeb,0xc1,0xc5};
+  sss  = service.processPacket(strlen(scannerId), scannerId, HBeaconScanRspDataType,macaaa,20, rawData, 0xee);
+  printf("processpacket code:\t%d\tmessage:\t%s\n\n", sss.code,sss.message);
+  
+  sleep(1);
+  if(count ==15) break;
+  count++;
+    }
 
   printf("==================rawdata change to error format\n");
   uint8_t rawData2[20] = {0x05,0x09,0x4d,0x49,0x31,0x53,0x05,0x02,0xe0,0xff,0xe7,0xfe,0x07,0x16,0xe0,0xfe,0xc3,0x16,0x00,0x00};

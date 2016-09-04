@@ -22,6 +22,7 @@ typedef enum {
   HBeaconStatusErrorBlacklist = 2,
   HBeaconStatusErrorCurl = 4,
   HBeaconStatusErrorLicense = 8,
+  HBeaconStatusDataCached = 9,
 } HBeaconStatusCode;
 
 typedef enum {
