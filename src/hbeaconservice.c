@@ -754,7 +754,7 @@ static HBeaconStatus processPacketInternal(uint8_t scannerIdlen,
 
      slist = curl_slist_append(NULL,"Content-Type:application/json;charset=UTF-8");
      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
-     curl_easy_setopt(curl, CURLOPT_TIMEOUT,3);
+     curl_easy_setopt(curl, CURLOPT_TIMEOUT,2);
 
      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, fields); //set curl json data string
      curl_easy_setopt(curl, CURLOPT_HTTPAUTH, (long)CURLAUTH_BASIC);

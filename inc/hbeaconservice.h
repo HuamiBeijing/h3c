@@ -41,7 +41,7 @@ typedef struct _hbeacon_status {
 } HBeaconStatus;
 
 #define ScannerIDMaxLength (64)
-#define JSON_CACHE_TIME (5)
+#define JSON_CACHE_TIME (3)
 
 typedef HBeaconStatus (*ConfigureScanner_t)(HBeaconScannerAction action,
 					uint8_t length,
