@@ -57,7 +57,10 @@
 
 #define JSON_CACHE_LEN  (20)
 
+#ifndef JSON_CACHE_TIME
 #define JSON_CACHE_TIME (5)
+#endif
+ 
 /*
  * GLOBAL VARIABLE DEFINITIONS
  ****************************************************************************************
@@ -74,7 +77,7 @@ static uint8_t isPasswdValid = 1;
 static uint32_t TimesTamp = 0;
 static uint32_t CacheTime =0;
 
-static struct json_object *Cache_json_data; 
+static struct json_object *Cache_json_data = NULL; 
 /*
  * STRUCTURES
  ****************************************************************************************
@@ -465,7 +468,7 @@ static HBeaconStatus packJson(Packdata* pdata, uint8_t **obj)
   if(CacheTime == 0) CacheTime = timestamp;
   if(timestamp-CacheTime < JSON_CACHE_TIME)
   {
-    return getStatus(HBeaconStatusDataCached,"Cached data!");
+    return getStatus(HBeaconStatusDataCached,"[Cached]");
   } 
 #endif
   

@@ -7,7 +7,7 @@
 *                                                                                                                                                                                                                  
 * Copyright (C) Huami  2016                                                                                                                                                                                        
 *                                                                                                                                                                                                                  
-*                                                                                                                                                                                                                  
+* VERSION 1.5                                                                                                                                                                                                                  
 ****************************************************************************************                                                                                                                           
 */
 
@@ -41,6 +41,7 @@ typedef struct _hbeacon_status {
 } HBeaconStatus;
 
 #define ScannerIDMaxLength (64)
+#define JSON_CACHE_TIME (5)
 
 typedef HBeaconStatus (*ConfigureScanner_t)(HBeaconScannerAction action,
 					uint8_t length,
